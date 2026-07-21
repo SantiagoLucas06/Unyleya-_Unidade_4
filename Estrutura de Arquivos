@@ -1,0 +1,19 @@
+unyleya_projeto_cicd_seunome/
+├── .github/
+│   └── workflows/              (GitHub Actions - opcional)
+├── terraform/
+│   ├── main.tf                 # Recursos principais
+│   ├── variables.tf            # Variáveis
+│   ├── outputs.tf              # Saídas
+│   └── terraform.tfvars.example # Exemplo de variáveis
+├── pipeline/
+│   ├── azure-pipelines-ci.yml   # Pipeline de CI
+│   └── azure-pipelines-cd.yml   # Pipeline de CD
+├── ansible/                     # (Opcional - alternativa ao Terraform)
+│   ├── playbook.yml
+│   └── inventory.azure_rm.yml
+├── Dockerfile
+├── app/                         # Código da aplicação
+│   └── app.py
+├── requirements.txt
+└── README.md

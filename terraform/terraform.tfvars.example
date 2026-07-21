@@ -1,0 +1,7 @@
+resource_group_name = "unyleya-projeto-rg"
+location            = "Brazil South"
+project_name        = "unyleya"
+environment         = "dev"
+docker_hub_username = "seu-usuario-docker"
+docker_image_name   = "unyleya-app"
+docker_image_tag    = "latest"

@@ -1,0 +1,99 @@
+# Esta pipeline é para ser usada no Azure DevOps como Release Pipeline
+# Mas pode ser adaptada para um único arquivo YAML
+
+trigger: none  # Não executar automaticamente
+
+resources:
+  pipelines:
+  - pipeline: build
+    source: 'unyleya_projeto_cicd'
+    trigger:
+      branches:
+        include:
+        - main
+
+parameters:
+- name: environment
+  displayName: 'Ambiente de deploy'
+  type: string
+  default: 'dev'
+  values:
+  - dev
+  - homol
+  - prod
+
+stages:
+- stage: DeployInfrastructure
+  displayName: 'Deploy Infrastructure with Terraform'
+  jobs:
+  - deployment: TerraformApply
+    displayName: 'Apply Terraform'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: '$(environment)'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: DownloadPipelineArtifact@2
+            inputs:
+              source: 'current'
+              artifact: 'drop'
+              path: '$(Pipeline.Workspace)/drop'
+          
+          - task: TerraformInstaller@0
+            displayName: 'Install Terraform'
+            inputs:
+              terraformVersion: '1.5.7'
+          
+          - task: TerraformCLI@0
+            displayName: 'Terraform Init'
+            inputs:
+              command: 'init'
+              workingDirectory: '$(Pipeline.Workspace)/drop/terraform'
+              backendServiceArm: 'azure-service-connection'
+              backendAzureRmResourceGroupName: '$(resourceGroupName)'
+              backendAzureRmStorageAccountName: '$(storageAccountName)'
+              backendAzureRmContainerName: 'terraform-state'
+              backendAzureRmKey: 'terraform.tfstate'
+          
+          - task: TerraformCLI@0
+            displayName: 'Terraform Plan'
+            inputs:
+              command: 'plan'
+              workingDirectory: '$(Pipeline.Workspace)/drop/terraform'
+              environmentServiceNameAzureRM: 'azure-service-connection'
+              commandOptions: '-var="docker_hub_username=$(dockerHubUsername)" -var="docker_image_tag=$(Build.BuildId)"'
+          
+          - task: TerraformCLI@0
+            displayName: 'Terraform Apply'
+            inputs:
+              command: 'apply'
+              workingDirectory: '$(Pipeline.Workspace)/drop/terraform'
+              environmentServiceNameAzureRM: 'azure-service-connection'
+              commandOptions: '-auto-approve -var="docker_hub_username=$(dockerHubUsername)" -var="docker_image_tag=$(Build.BuildId)"'
+
+- stage: DeployContainer
+  displayName: 'Deploy Container to App Service'
+  dependsOn: DeployInfrastructure
+  jobs:
+  - deployment: DeployWebApp
+    displayName: 'Deploy Web App'
+    pool:
+      vmImage: 'ubuntu-latest'
+    environment: '$(environment)'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebApp@1
+            displayName: 'Deploy to App Service'
+            inputs:
+              azureSubscription: 'azure-service-connection'
+              appType: 'webAppHyperVContainer'  # Windows Container
+              appName: '$(projectName)-app'
+              deployToSlotOrASE: true
+              slotName: 'production'
+              package: '$(Pipeline.Workspace)/drop'
+              containerImage: '$(dockerHubUsername)/unyleya-app:$(Build.BuildId)'
+              registryUrl: 'https://index.docker.io'
